@@ -4,28 +4,38 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace DurableFunction.Monitoring.Client
 {
+    /// <summary>
+    /// Monitoring
+    /// </summary>
     public static class Monitoring
     {
+        /// <summary>
+        /// Monitorings the orchestrator.
+        /// </summary>
+        /// <param name="context">The context.</param>
         [FunctionName(AppConstants.MonitoringOrchestrator)]
-        public static async Task MonitoringOrchestrator(
-            [OrchestrationTrigger] IDurableOrchestrationContext context)
+        public static async Task MonitoringOrchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
-            DateTime nextCheckpoint = context.CurrentUtcDateTime.AddSeconds(AppConstants.MonitoringInterval);
-            while (context.CurrentUtcDateTime < nextCheckpoint)
-            {
-                await context.CallActivityAsync<string>(AppConstants.MonitoringActivity, "SomeLocation");
-            }
+            await context.CallActivityAsync<string>(AppConstants.MonitoringActivity, "SomeLocation");
 
-            await context.CreateTimer(nextCheckpoint, CancellationToken.None);
+            // sleep for one hour between cleanups
+            DateTime nextCleanup = context.CurrentUtcDateTime.AddSeconds(AppConstants.MonitoringInterval);
+            await context.CreateTimer(nextCleanup, CancellationToken.None);
+
+            context.ContinueAsNew(null);
         }
 
+        /// <summary>
+        /// Monitorings the activity.
+        /// </summary>
+        /// <param name="someLocation">Some location.</param>
+        /// <param name="log">The log.</param>
         [FunctionName(AppConstants.MonitoringActivity)]
         public static async Task MonitoringActivity([ActivityTrigger] string someLocation, ILogger log)
         {
@@ -34,6 +44,13 @@ namespace DurableFunction.Monitoring.Client
             log.LogInformation($"Cleanup Process completed in {someLocation} @ {DateTime.UtcNow}...");
         }
 
+        /// <summary>
+        /// HTTPs the start.
+        /// </summary>
+        /// <param name="req">The req.</param>
+        /// <param name="starter">The starter.</param>
+        /// <param name="log">The log.</param>
+        /// <returns>HttpResponseMessage</returns>
         [FunctionName(AppConstants.MonitoringClient)]
         public static async Task<HttpResponseMessage> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestMessage req,
